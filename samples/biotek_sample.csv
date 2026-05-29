@@ -1,0 +1,31 @@
+Instrument Information
+Instrument Type,Synergy H1
+Serial Number,SN123456
+Software Version,Gen5 3.11
+
+Plate Information
+Plate ID,DEMO-001
+Read Date,2024-01-15
+Read Time,10:30:00
+Read Type,Endpoint
+Detection Method,Absorbance
+Plate Format,96-Well
+
+Measurement Settings
+Measurement Wavelength (nm),450
+Reference Wavelength (nm),620
+
+Results
+Well,Sample ID,Raw Data (OD),
+A1,BLANK,0.052
+A2,CTRL_POS,1.823
+A3,SAMPLE_001,0.741
+A4,SAMPLE_002,0.835
+A5,SAMPLE_003,0.612
+A6,SAMPLE_004,1.102
+B1,BLANK,0.048
+B2,CTRL_NEG,0.061
+B3,SAMPLE_005,0.923
+B4,SAMPLE_006,0.445
+B5,SAMPLE_007,0.788
+B6,SAMPLE_008,1.234

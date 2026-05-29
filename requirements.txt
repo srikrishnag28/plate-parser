@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+supabase
+google-genai
+pymupdf
+pytesseract
+jsonschema
+pydantic
+pytest
+pytest-asyncio
+httpx
+python-dotenv
+slowapi
+pillow
