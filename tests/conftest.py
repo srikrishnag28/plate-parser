@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
+os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "test-supabase-key")
 os.environ.setdefault("MAX_FILE_SIZE_MB", "10")
@@ -55,7 +56,16 @@ SAMPLE_OUTPUT_JSON = {
 
 @pytest.fixture
 def client():
-    with patch("app.storage.get_client"), \
-         patch("app.database.get_client"):
+    with patch("app.storage.get_client") as mock_sc:
+        # Storage: upload succeeds, returns a fake URL
+        mock_sc.return_value.storage.from_.return_value.upload.return_value = {}
+        mock_sc.return_value.storage.from_.return_value.get_public_url.return_value = (
+            "https://storage/file"
+        )
+        # Database: table operations succeed and return minimal fake rows
+        table_mock = mock_sc.return_value.table.return_value
+        table_mock.insert.return_value.execute.return_value.data = [{"id": "job-123"}]
+        table_mock.update.return_value.eq.return_value.execute.return_value.data = []
+        table_mock.select.return_value.eq.return_value.execute.return_value.data = []
         from app.main import app
         return TestClient(app)

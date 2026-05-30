@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_validator.py tests/test_agent.py tests/test_parser_run.py -v)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/Benchling-Open-Source/allotropy/main/tests/parsers/agilent_gen5/testdata/absorbance/endpoint_absorbance_2.txt\" -o \"samples/biotek_sample.txt\")",
+      "Bash(curl -s \"https://api.github.com/repos/Benchling-Open-Source/allotropy/contents/tests/parsers/agilent_gen5/testdata/absorbance\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/Benchling-Open-Source/allotropy/main/tests/parsers/agilent_gen5/testdata/absorbance/010307_114129_BNCH654563_stdcurve_singleplate01.txt\" -o \"samples/biotek_sample.txt\")",
+      "Bash(uvicorn app.main:app --host 0.0.0.0 --port 8000)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl *)",
+      "Bash(pkill -f \"uvicorn app.main\")",
+      "Bash(uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug)",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 12996 /F)",
+      "Bash(taskkill /PID 3392 /F)",
+      "PowerShell(Stop-Process *)",
+      "Bash(grep -v \"^WARNING\\\\|^INFO\\\\|^C:\\\\\\\\\")",
+      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8000)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(netstat *)",
+      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001)",
+      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level debug)",
+      "Bash(pip show *)",
+      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level info)"
+    ]
+  }
+}

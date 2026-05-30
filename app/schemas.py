@@ -28,24 +28,24 @@ class WellRole(str, Enum):
 
 
 class Instrument(BaseModel):
-    manufacturer: str
-    model: str
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
     serial_number: Optional[str] = None
     software: Optional[str] = None
 
 
 class Experiment(BaseModel):
     id: Optional[str] = None
-    read_date: str
-    read_time: str
-    read_type: ReadType
-    detection_method: DetectionMethod
-    plate_format: PlateFormat
+    read_date: Optional[str] = None
+    read_time: Optional[str] = None
+    read_type: Optional[ReadType] = None
+    detection_method: Optional[DetectionMethod] = None
+    plate_format: Optional[PlateFormat] = None
     temperature_celsius: Optional[float] = None
 
 
 class MeasurementSettings(BaseModel):
-    measurement_wavelength_nm: float
+    measurement_wavelength_nm: Optional[float] = None
     reference_wavelength_nm: Optional[float] = None
     excitation_wavelength_nm: Optional[float] = None
     emission_wavelength_nm: Optional[float] = None
@@ -58,7 +58,7 @@ class Well(BaseModel):
     raw_value: float
     unit: str
     sample_id: Optional[str] = None
-    well_role: WellRole
+    well_role: Optional[WellRole] = None
     blank_corrected_value: Optional[float] = None
     timepoints: Optional[List] = None
 

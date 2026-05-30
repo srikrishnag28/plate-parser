@@ -25,6 +25,7 @@ jobs:
         env:
           API_SECRET_KEY: test-secret-key
           GEMINI_API_KEY: test-gemini-key
+          GROQ_API_KEY: test-groq-key
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_KEY: test-supabase-key
           MAX_FILE_SIZE_MB: "10"

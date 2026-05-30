@@ -35,14 +35,20 @@ def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:
     return api_key
 
 
+ALLOWED_DATA_EXTENSIONS = {"csv", "txt"}
+
+
 async def validate_file_type(file: UploadFile, allowed_types: set[str], file_label: str) -> None:
     content_type = file.content_type or ""
-    extension = (file.filename or "").lower().split(".")[-1]
+    extension = (file.filename or "").lower().rsplit(".", 1)[-1]
 
-    if file_label == "csv" and extension != "csv":
-        raise HTTPException(status_code=400, detail=f"{file_label} file must be a CSV (.csv)")
+    if file_label == "data" and extension not in ALLOWED_DATA_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Data file must be a CSV or TXT (.csv, .txt) — got .{extension}",
+        )
     if file_label == "pdf" and extension != "pdf":
-        raise HTTPException(status_code=400, detail=f"{file_label} file must be a PDF (.pdf)")
+        raise HTTPException(status_code=400, detail="Docs file must be a PDF (.pdf)")
 
     if content_type and content_type not in allowed_types and "octet-stream" not in content_type:
         logger.warning("Unexpected content-type %s for %s", content_type, file_label)

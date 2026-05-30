@@ -3,6 +3,7 @@ uvicorn[standard]
 python-multipart
 supabase
 google-genai
+groq
 pymupdf
 pytesseract
 jsonschema

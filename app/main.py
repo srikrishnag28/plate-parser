@@ -1,5 +1,6 @@
 import os
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,7 @@ from .schemas import (
 from .security import (
     verify_api_key, validate_file_type, validate_file_size,
     scan_for_injection, sanitize_content,
-    ALLOWED_CSV_TYPES, ALLOWED_PDF_TYPES,
+    ALLOWED_CSV_TYPES, ALLOWED_PDF_TYPES, ALLOWED_DATA_EXTENSIONS,
 )
 from .storage import upload_file, upload_json
 from .database import (
@@ -61,22 +62,22 @@ async def health():
 @limiter.limit(f"{RATE_LIMIT}/hour")
 async def upload(
     request: Request,
-    csv_file: UploadFile = File(...),
-    pdf_file: UploadFile = File(...),
+    file: UploadFile = File(...),
+    docs: UploadFile = File(...),
     api_key: str = Depends(verify_api_key),
 ):
     # Validate file types
-    await validate_file_type(csv_file, ALLOWED_CSV_TYPES, "csv")
-    await validate_file_type(pdf_file, ALLOWED_PDF_TYPES, "pdf")
+    await validate_file_type(file, ALLOWED_CSV_TYPES, "data")
+    await validate_file_type(docs, ALLOWED_PDF_TYPES, "pdf")
 
-    csv_bytes = await csv_file.read()
-    pdf_bytes = await pdf_file.read()
+    data_bytes = await file.read()
+    pdf_bytes = await docs.read()
 
     # Validate file sizes
-    await validate_file_size(csv_file, csv_bytes, "csv")
-    await validate_file_size(pdf_file, pdf_bytes, "pdf")
+    await validate_file_size(file, data_bytes, "data")
+    await validate_file_size(docs, pdf_bytes, "docs")
 
-    csv_content = csv_bytes.decode("utf-8", errors="replace")
+    csv_content = data_bytes.decode("utf-8", errors="replace")
 
     # Injection scan
     has_injection, suspicious = scan_for_injection(csv_content)
@@ -86,9 +87,9 @@ async def upload(
         if not csv_content.strip():
             raise HTTPException(status_code=400, detail="File rejected: contains prompt injection patterns")
 
-    # Upload to Supabase storage
-    csv_url = await upload_file("uploads", csv_bytes, csv_file.filename or "input.csv", "text/csv")
-    pdf_url = await upload_file("uploads", pdf_bytes, pdf_file.filename or "docs.pdf", "application/pdf")
+    # Upload to Supabase storage (falls back to local temp dir if Supabase is misconfigured)
+    csv_url = await upload_file("uploads", data_bytes, file.filename or "input.txt", "text/csv")
+    pdf_url = await upload_file("uploads", pdf_bytes, docs.filename or "docs.pdf", "application/pdf")
 
     job_id = await create_job(csv_url, pdf_url)
 
@@ -98,9 +99,6 @@ async def upload(
     except Exception as e:
         await update_job(job_id, status="failed", error_message=str(e))
         raise HTTPException(status_code=500, detail=f"Agent failed: {e}")
-
-    # Store parser_code temporarily in job record for later approval
-    await update_job(job_id, parser_code_temp=parser_code)
 
     return UploadResponse(
         job_id=job_id,
@@ -164,16 +162,21 @@ async def feedback(
 
     parser_code = job.get("parser_code_temp", "")
 
-    # Fetch original CSV and PDF
-    from .storage import get_client
+    # Fetch original CSV and PDF — handle local:// fallback URLs and real HTTP URLs
     import httpx
+    from pathlib import Path
 
-    async with httpx.AsyncClient() as client:
-        csv_resp = await client.get(job["input_file_url"])
-        pdf_resp = await client.get(job["docs_url"])
+    async def _fetch(url: str) -> bytes:
+        if url.startswith("local://"):
+            return Path(url[len("local://"):]).read_bytes()
+        async with httpx.AsyncClient() as hc:
+            r = await hc.get(url)
+            r.raise_for_status()
+            return r.content
 
-    csv_content = csv_resp.text
-    pdf_bytes = pdf_resp.content
+    csv_bytes_raw = await _fetch(job["input_file_url"])
+    pdf_bytes = await _fetch(job["docs_url"])
+    csv_content = csv_bytes_raw.decode("utf-8", errors="replace")
 
     # Injection scan on feedback itself
     has_injection, _ = scan_for_injection(body.feedback)
@@ -203,37 +206,56 @@ async def feedback(
 async def run_parser(
     request: Request,
     parser_id: str,
-    csv_file: UploadFile = File(...),
+    file: UploadFile = File(...),
     api_key: str = Depends(verify_api_key),
 ):
-    parser = await get_parser(parser_id)
+    try:
+        parser = await get_parser(parser_id)
+    except Exception as e:
+        logger.error("DB error fetching parser %s:\n%s", parser_id, traceback.format_exc())
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
     if not parser:
-        raise HTTPException(status_code=404, detail="Parser not found")
+        raise HTTPException(status_code=404, detail=f"Parser '{parser_id}' not found")
     if not parser["is_active"]:
         raise HTTPException(status_code=400, detail="Parser is inactive")
 
-    await validate_file_type(csv_file, ALLOWED_CSV_TYPES, "csv")
-    csv_bytes = await csv_file.read()
-    await validate_file_size(csv_file, csv_bytes, "csv")
+    await validate_file_type(file, ALLOWED_CSV_TYPES, "data")
+    csv_bytes = await file.read()
+    await validate_file_size(file, csv_bytes, "data")
 
     csv_content = csv_bytes.decode("utf-8", errors="replace")
     has_injection, _ = scan_for_injection(csv_content)
     if has_injection:
         csv_content, _ = sanitize_content(csv_content)
 
+    # Run the saved parser in subprocess sandbox
     try:
         output_json = run_parser_in_sandbox(parser["parser_code"], csv_content)
     except Exception as e:
-        run_id = await create_run(parser_id, "", "failed")
-        raise HTTPException(status_code=500, detail=f"Parser run failed: {e}")
+        logger.error("Sandbox failed for parser %s:\n%s", parser_id, traceback.format_exc())
+        try:
+            await create_run(parser_id, "", "failed")
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Parser execution failed: {e}")
 
     valid, error = validate_output(output_json)
     if not valid:
-        run_id = await create_run(parser_id, "", "failed")
-        raise HTTPException(status_code=500, detail=f"Output validation failed: {error}")
+        logger.error("Output validation failed for parser %s: %s", parser_id, error)
+        try:
+            await create_run(parser_id, "", "failed")
+        except Exception:
+            pass
+        raise HTTPException(status_code=422, detail=f"Output validation failed: {error}")
 
-    output_url = await upload_json("outputs", output_json, f"run_{parser_id}.json")
-    run_id = await create_run(parser_id, output_url, "success")
+    # Persist result
+    try:
+        output_url = await upload_json("outputs", output_json, f"run_{parser_id}.json")
+        run_id = await create_run(parser_id, output_url, "success")
+    except Exception as e:
+        logger.error("Failed to persist run result for parser %s:\n%s", parser_id, traceback.format_exc())
+        raise HTTPException(status_code=503, detail=f"Storage/DB error saving result: {e}")
 
     return RunResponse(
         run_id=run_id,
@@ -252,11 +274,11 @@ async def get_parsers(api_key: str = Depends(verify_api_key)):
     return [
         ParserInfo(
             id=p["id"],
-            name=p["name"],
-            instrument=p["instrument"],
-            version=p["version"],
-            is_active=p["is_active"],
-            created_at=str(p["created_at"]),
+            name=p.get("name", ""),
+            instrument=p.get("instrument", ""),
+            version=p.get("version", 1),
+            is_active=p.get("is_active", True),
+            created_at=str(p.get("created_at", "")),
         )
         for p in parsers
     ]
