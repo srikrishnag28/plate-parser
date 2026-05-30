@@ -2,8 +2,10 @@ import os
 import logging
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -47,6 +49,15 @@ app.add_middleware(
 )
 
 RATE_LIMIT = os.getenv("RATE_LIMIT_PER_HOUR", "10")
+
+
+# ── UI ────────────────────────────────────────────────────────────────────────
+
+_UI_PATH = Path(__file__).parent.parent / "templates" / "index.html"
+
+@app.get("/", include_in_schema=False)
+async def ui():
+    return FileResponse(_UI_PATH)
 
 
 # ── Health ─────────────────────────────────────────────────────────────────────
