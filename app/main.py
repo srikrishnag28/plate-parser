@@ -1,15 +1,11 @@
 import os
+import json
 import logging
 import traceback
-from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from starlette.requests import Request
+from fastapi.responses import FileResponse, StreamingResponse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,9 +15,8 @@ from .schemas import (
     RunResponse, ParserInfo, JobStatus, HealthResponse,
 )
 from .security import (
-    verify_api_key, validate_file_type, validate_file_size,
-    scan_for_injection, sanitize_content,
-    ALLOWED_CSV_TYPES, ALLOWED_PDF_TYPES, ALLOWED_DATA_EXTENSIONS,
+    validate_file_type, validate_file_size,
+    ALLOWED_CSV_TYPES, ALLOWED_PDF_TYPES,
 )
 from .storage import upload_file, upload_json
 from .database import (
@@ -31,15 +26,12 @@ from .database import (
 from .agent import generate_parser, refine_parser
 from .sandbox import run_parser_in_sandbox
 from .validator import validate_output
+from .pipeline import run_pipeline
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(title="plate-parser", version="1.0.0")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,57 +40,72 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-RATE_LIMIT = os.getenv("RATE_LIMIT_PER_HOUR", "10")
-
-
-# ── UI ────────────────────────────────────────────────────────────────────────
-
 _UI_PATH = Path(__file__).parent.parent / "templates" / "index.html"
+
 
 @app.get("/", include_in_schema=False)
 async def ui():
     return FileResponse(_UI_PATH)
 
 
-# ── Health ─────────────────────────────────────────────────────────────────────
-
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return {"status": "ok"}
 
 
-# ── Upload ─────────────────────────────────────────────────────────────────────
+@app.post("/parse")
+async def parse(
+    file: UploadFile = File(...),
+    docs: UploadFile = File(None),
+):
+    """
+    Research-first autonomous pipeline. Streams SSE events for each stage.
+    docs (PDF) is optional — the agent will web-search for instrument docs if omitted.
+    Final SSE event carries output_json and parser_id.
+    """
+    await validate_file_type(file, ALLOWED_CSV_TYPES, "data")
+    csv_bytes = await file.read()
+    await validate_file_size(file, csv_bytes, "data")
+    csv_content = csv_bytes.decode("utf-8", errors="replace")
+
+    pdf_bytes: bytes | None = None
+    if docs and docs.filename:
+        await validate_file_type(docs, ALLOWED_PDF_TYPES, "pdf")
+        pdf_bytes = await docs.read()
+        await validate_file_size(docs, pdf_bytes, "docs")
+
+    async def event_stream():
+        try:
+            async for event in run_pipeline(csv_content, pdf_bytes, file.filename or "input.csv"):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            logger.error("Pipeline error: %s", traceback.format_exc())
+            yield f"data: {json.dumps({'stage': 'error', 'status': 'error', 'error': str(e)})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 @app.post("/upload", response_model=UploadResponse)
-@limiter.limit(f"{RATE_LIMIT}/hour")
 async def upload(
-    request: Request,
     file: UploadFile = File(...),
     docs: UploadFile = File(...),
-    api_key: str = Depends(verify_api_key),
 ):
-    # Validate file types
     await validate_file_type(file, ALLOWED_CSV_TYPES, "data")
     await validate_file_type(docs, ALLOWED_PDF_TYPES, "pdf")
 
     data_bytes = await file.read()
     pdf_bytes = await docs.read()
 
-    # Validate file sizes
     await validate_file_size(file, data_bytes, "data")
     await validate_file_size(docs, pdf_bytes, "docs")
 
     csv_content = data_bytes.decode("utf-8", errors="replace")
 
-    # Injection scan
-    has_injection, suspicious = scan_for_injection(csv_content)
-    if has_injection:
-        logger.warning("Injection patterns found in upload, sanitizing")
-        csv_content, removed = sanitize_content(csv_content)
-        if not csv_content.strip():
-            raise HTTPException(status_code=400, detail="File rejected: contains prompt injection patterns")
-
-    # Upload to Supabase storage (falls back to local temp dir if Supabase is misconfigured)
     csv_url = await upload_file("uploads", data_bytes, file.filename or "input.txt", "text/csv")
     pdf_url = await upload_file("uploads", pdf_bytes, docs.filename or "docs.pdf", "application/pdf")
 
@@ -115,14 +122,13 @@ async def upload(
         job_id=job_id,
         status="pending_review",
         sample_json=sample_json,
+        parser_code=parser_code,
         message="Parser generated. Review the sample JSON and approve or provide feedback.",
     )
 
 
-# ── Approve ────────────────────────────────────────────────────────────────────
-
 @app.post("/approve/{job_id}", response_model=ApproveResponse)
-async def approve(job_id: str, api_key: str = Depends(verify_api_key)):
+async def approve(job_id: str):
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -134,7 +140,6 @@ async def approve(job_id: str, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=400, detail="No parser code found for this job")
 
     sample_json = job.get("sample_json", {})
-    instrument = ""
     try:
         instrument = sample_json["plate_reader_document"]["instrument"]["model"]
     except (KeyError, TypeError):
@@ -155,16 +160,8 @@ async def approve(job_id: str, api_key: str = Depends(verify_api_key)):
     )
 
 
-# ── Feedback ───────────────────────────────────────────────────────────────────
-
 @app.post("/feedback/{job_id}", response_model=FeedbackResponse)
-@limiter.limit(f"{RATE_LIMIT}/hour")
-async def feedback(
-    request: Request,
-    job_id: str,
-    body: FeedbackRequest,
-    api_key: str = Depends(verify_api_key),
-):
+async def feedback(job_id: str, body: FeedbackRequest):
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -173,9 +170,7 @@ async def feedback(
 
     parser_code = job.get("parser_code_temp", "")
 
-    # Fetch original CSV and PDF — handle local:// fallback URLs and real HTTP URLs
     import httpx
-    from pathlib import Path
 
     async def _fetch(url: str) -> bytes:
         if url.startswith("local://"):
@@ -189,11 +184,6 @@ async def feedback(
     pdf_bytes = await _fetch(job["docs_url"])
     csv_content = csv_bytes_raw.decode("utf-8", errors="replace")
 
-    # Injection scan on feedback itself
-    has_injection, _ = scan_for_injection(body.feedback)
-    if has_injection:
-        raise HTTPException(status_code=400, detail="Feedback contains injection patterns")
-
     try:
         new_code, new_json = refine_parser(parser_code, csv_content, pdf_bytes, body.feedback)
     except Exception as e:
@@ -206,20 +196,13 @@ async def feedback(
         job_id=job_id,
         status="pending_review",
         sample_json=new_json,
+        parser_code=new_code,
         message="Parser refined. Review updated JSON and approve or give more feedback.",
     )
 
 
-# ── Run ────────────────────────────────────────────────────────────────────────
-
 @app.post("/run/{parser_id}", response_model=RunResponse)
-@limiter.limit(f"{RATE_LIMIT}/hour")
-async def run_parser(
-    request: Request,
-    parser_id: str,
-    file: UploadFile = File(...),
-    api_key: str = Depends(verify_api_key),
-):
+async def run_parser(parser_id: str, file: UploadFile = File(...)):
     try:
         parser = await get_parser(parser_id)
     except Exception as e:
@@ -236,11 +219,7 @@ async def run_parser(
     await validate_file_size(file, csv_bytes, "data")
 
     csv_content = csv_bytes.decode("utf-8", errors="replace")
-    has_injection, _ = scan_for_injection(csv_content)
-    if has_injection:
-        csv_content, _ = sanitize_content(csv_content)
 
-    # Run the saved parser in subprocess sandbox
     try:
         output_json = run_parser_in_sandbox(parser["parser_code"], csv_content)
     except Exception as e:
@@ -260,7 +239,6 @@ async def run_parser(
             pass
         raise HTTPException(status_code=422, detail=f"Output validation failed: {error}")
 
-    # Persist result
     try:
         output_url = await upload_json("outputs", output_json, f"run_{parser_id}.json")
         run_id = await create_run(parser_id, output_url, "success")
@@ -277,10 +255,8 @@ async def run_parser(
     )
 
 
-# ── List parsers ───────────────────────────────────────────────────────────────
-
 @app.get("/parsers", response_model=list[ParserInfo])
-async def get_parsers(api_key: str = Depends(verify_api_key)):
+async def get_parsers():
     parsers = await list_parsers()
     return [
         ParserInfo(
@@ -295,10 +271,8 @@ async def get_parsers(api_key: str = Depends(verify_api_key)):
     ]
 
 
-# ── Job status ─────────────────────────────────────────────────────────────────
-
 @app.get("/jobs/{job_id}", response_model=JobStatus)
-async def get_job_status(job_id: str, api_key: str = Depends(verify_api_key)):
+async def get_job_status(job_id: str):
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")

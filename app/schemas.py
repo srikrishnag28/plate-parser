@@ -1,85 +1,12 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Union
-from enum import Enum
+from pydantic import BaseModel
+from typing import Optional, List
 
-
-class ReadType(str, Enum):
-    endpoint = "endpoint"
-    kinetic = "kinetic"
-
-
-class DetectionMethod(str, Enum):
-    absorbance = "absorbance"
-    fluorescence = "fluorescence"
-    luminescence = "luminescence"
-
-
-class PlateFormat(str, Enum):
-    well_96 = "96-well"
-    well_384 = "384-well"
-    well_1536 = "1536-well"
-
-
-class WellRole(str, Enum):
-    sample = "sample"
-    blank = "blank"
-    control = "control"
-    unknown = "unknown"
-
-
-class Instrument(BaseModel):
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = None
-    software: Optional[str] = None
-
-
-class Experiment(BaseModel):
-    id: Optional[str] = None
-    read_date: Optional[str] = None
-    read_time: Optional[str] = None
-    read_type: Optional[ReadType] = None
-    detection_method: Optional[DetectionMethod] = None
-    plate_format: Optional[PlateFormat] = None
-    temperature_celsius: Optional[float] = None
-
-
-class MeasurementSettings(BaseModel):
-    measurement_wavelength_nm: Optional[float] = None
-    reference_wavelength_nm: Optional[float] = None
-    excitation_wavelength_nm: Optional[float] = None
-    emission_wavelength_nm: Optional[float] = None
-
-
-class Well(BaseModel):
-    well_position: str
-    row: str
-    column: int
-    raw_value: float
-    unit: str
-    sample_id: Optional[str] = None
-    well_role: Optional[WellRole] = None
-    blank_corrected_value: Optional[float] = None
-    timepoints: Optional[List] = None
-
-
-class PlateReaderDocument(BaseModel):
-    instrument: Instrument
-    experiment: Experiment
-    measurement_settings: MeasurementSettings
-    wells: List[Well]
-
-
-class PlateReaderOutput(BaseModel):
-    plate_reader_document: PlateReaderDocument
-
-
-# API request/response schemas
 
 class UploadResponse(BaseModel):
     job_id: str
     status: str
     sample_json: Optional[dict] = None
+    parser_code: Optional[str] = None
     message: str
 
 
@@ -97,6 +24,7 @@ class FeedbackResponse(BaseModel):
     job_id: str
     status: str
     sample_json: Optional[dict] = None
+    parser_code: Optional[str] = None
     message: str
 
 

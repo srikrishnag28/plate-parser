@@ -31,7 +31,42 @@
       "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001)",
       "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level debug)",
       "Bash(pip show *)",
-      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level info)"
+      "Bash(uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level info)",
+      "Bash(npm install *)",
+      "Bash(python3 -m venv --help)",
+      "Bash(python3 -m venv venv)",
+      "Bash(venv/bin/pip install *)",
+      "Bash(venv/bin/python -c \"import fastapi, uvicorn, supabase, google.genai, fitz, jsonschema\")",
+      "Bash(pkill -f \"uvicorn app.main:app\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(venv/bin/uvicorn app.main:app --reload --port 8000)",
+      "Bash(echo \"backend pid: $!\")",
+      "Bash(npm run *)",
+      "Bash(echo \"frontend pid: $!\")",
+      "WebSearch",
+      "WebFetch(domain:docs.venice.ai)",
+      "WebFetch(domain:venice.ai)",
+      "WebFetch(domain:api.venice.ai)",
+      "Bash(venv/bin/python *)",
+      "Bash(npx tsc *)",
+      "Bash(claude mcp *)",
+      "Bash(npx skills *)",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "Bash(uvicorn app.main:app --reload --port 8000)",
+      "Bash(echo \"BE PID: $!\")",
+      "Bash(echo \"FE PID: $!\")",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__execute_sql",
+      "Bash(xargs kill -9)",
+      "Bash(xargs ls)",
+      "Bash(python3 /tmp/console2.py)",
+      "Bash(playwright screenshot *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

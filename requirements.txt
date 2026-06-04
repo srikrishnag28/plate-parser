@@ -2,15 +2,10 @@ fastapi
 uvicorn[standard]
 python-multipart
 supabase
-google-genai
-groq
-pymupdf
-pytesseract
+openai
 jsonschema
 pydantic
 pytest
 pytest-asyncio
 httpx
 python-dotenv
-slowapi
-pillow
