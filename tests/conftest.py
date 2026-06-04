@@ -3,16 +3,13 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
-os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
-os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
+os.environ.setdefault("PRIVATE_AI_API_KEY", "test-ai-key")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "test-supabase-key")
 os.environ.setdefault("MAX_FILE_SIZE_MB", "10")
-os.environ.setdefault("RATE_LIMIT_PER_HOUR", "100")
 
-VALID_API_KEY = "test-secret-key"
-HEADERS = {"x-api-key": VALID_API_KEY}
+# No request auth in the POC — kept as an empty mapping so callers can pass headers=HEADERS.
+HEADERS: dict[str, str] = {}
 
 SAMPLE_OUTPUT_JSON = {
     "plate_reader_document": {
