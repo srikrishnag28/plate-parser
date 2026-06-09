@@ -4,7 +4,7 @@ import Link from 'next/link'
 import {
   ArrowRight, Bot, FileUp, FileText, Search, Globe, Code2, Database,
   Microscope, Atom, Dna, Activity, FlaskConical, Clock, Wrench, Repeat,
-  BookOpen, ShieldCheck,
+  BookOpen,
 } from 'lucide-react'
 import { Nav } from '@/components/Nav'
 
@@ -134,23 +134,6 @@ export default function Landing() {
                 <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{desc}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Privacy */}
-      <section className="max-w-5xl mx-auto px-4 py-4">
-        <div className="bg-zinc-900 border border-green-500/20 rounded-xl p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-            <ShieldCheck className="w-5 h-5 text-green-400" />
-          </div>
-          <div>
-            <p className="font-semibold text-zinc-100">Private by design</p>
-            <p className="text-sm text-zinc-500 mt-1 leading-relaxed">
-              Runs on a privacy-focused private AI provider — your instrument data is processed with private
-              inference, not a general public model API. The inference layer can move into a Trusted Execution
-              Environment (TEE) on demand for hardware-isolated processing of sensitive lab data.
-            </p>
           </div>
         </div>
       </section>

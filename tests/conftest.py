@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("PRIVATE_AI_API_KEY", "test-ai-key")
+os.environ.setdefault("OPENROUTER_API_KEY", "test-ai-key")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "test-supabase-key")
 os.environ.setdefault("MAX_FILE_SIZE_MB", "10")

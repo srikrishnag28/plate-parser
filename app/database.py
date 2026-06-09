@@ -179,3 +179,14 @@ async def record_pipeline_stage(
         "summary": summary,
         "duration_ms": duration_ms,
     }).execute()
+
+
+# ── Maintenance ───────────────────────────────────────────────────────────────
+
+async def clear_database() -> None:
+    """Delete all rows from every table. Child tables first to respect FK constraints."""
+    client = _get_client()
+    _zero = "00000000-0000-0000-0000-000000000000"  # PostgREST requires a filter on delete
+    for table in ("pipeline_stages", "pipeline_runs", "parser_runs", "parsers", "jobs"):
+        client.table(table).delete().neq("id", _zero).execute()
+    _parser_cache.clear()

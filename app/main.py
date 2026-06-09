@@ -18,10 +18,10 @@ from .security import (
     validate_file_type, validate_file_size,
     ALLOWED_CSV_TYPES, ALLOWED_PDF_TYPES,
 )
-from .storage import upload_file, upload_json
+from .storage import upload_file, upload_json, clear_storage
 from .database import (
     create_job, update_job, get_job,
-    save_parser, get_parser, list_parsers, create_run,
+    save_parser, get_parser, list_parsers, create_run, clear_database,
 )
 from .agent import generate_parser, refine_parser
 from .sandbox import run_parser_in_sandbox
@@ -269,6 +269,17 @@ async def get_parsers():
         )
         for p in parsers
     ]
+
+
+@app.delete("/database")
+async def clear_db():
+    try:
+        await clear_database()
+        await clear_storage()
+    except Exception as e:
+        logger.error("Failed to clear database/storage:\n%s", traceback.format_exc())
+        raise HTTPException(status_code=503, detail=f"Clear failed: {e}")
+    return {"message": "Database and storage cleared."}
 
 
 @app.get("/jobs/{job_id}", response_model=JobStatus)

@@ -114,3 +114,7 @@ export async function runParser(parserId: string, file: File): Promise<RunResult
   fd.append('file', file)
   return apiFetch(`/run/${parserId}`, { method: 'POST', body: fd })
 }
+
+export async function clearDatabase(): Promise<{ message: string }> {
+  return apiFetch('/database', { method: 'DELETE' })
+}

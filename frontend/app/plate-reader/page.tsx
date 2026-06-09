@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Zap, BarChart3, Code2, Microscope, Braces, ArrowRight, AlertTriangle } from 'lucide-react'
+import { Zap, BarChart3, Code2, Microscope, Braces, ArrowRight, AlertTriangle, Trash2 } from 'lucide-react'
 import { Nav } from '@/components/Nav'
 import { DropZone } from '@/components/DropZone'
 import { WellsTable } from '@/components/WellsTable'
@@ -10,7 +10,7 @@ import { PipelineFlow } from '@/components/PipelineFlow'
 import { StageDrawer } from '@/components/StageDrawer'
 import { streamParse, type StageEvent } from '@/lib/pipeline'
 import { type PipelineStage, type LogLine } from '@/lib/pipelineTypes'
-import type { PlateReaderOutput, Well } from '@/lib/api'
+import { clearDatabase, type PlateReaderOutput, type Well } from '@/lib/api'
 
 interface ParseResult {
   output_json: PlateReaderOutput
@@ -69,8 +69,23 @@ export default function PlateReaderTool() {
   const [logsByStage, setLogsByStage] = useState<Record<string, LogLine[]>>({})
   const [drawerStage, setDrawerStage] = useState<string | null>(null)
 
+  const [clearing, setClearing] = useState(false)
+
   // Tracks which stage is currently running, so interleaved log events get attributed to it.
   const currentStageRef = useRef<string>('identify')
+
+  const handleClearDb = useCallback(async () => {
+    if (clearing) return
+    if (!confirm('Clear everything? This permanently deletes all jobs, parsers, runs, and uploaded/output files.')) return
+    setClearing(true)
+    try {
+      await clearDatabase()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to clear database')
+    } finally {
+      setClearing(false)
+    }
+  }, [clearing])
 
   const handleParse = useCallback(async () => {
     if (!dataFile || parsing) return
@@ -141,11 +156,21 @@ export default function PlateReaderTool() {
       <Nav />
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-5">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Plate Reader Parser</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Drop a plate reader export — the AI pipeline identifies it, generates a parser, and extracts structured data.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-100">Plate Reader Parser</h1>
+            <p className="text-sm text-zinc-500 mt-1">
+              Drop a plate reader export — the AI pipeline identifies it, generates a parser, and extracts structured data.
+            </p>
+          </div>
+          <button
+            onClick={handleClearDb}
+            disabled={clearing}
+            className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {clearing ? 'Clearing…' : 'Clear DB'}
+          </button>
         </div>
 
         {error && (

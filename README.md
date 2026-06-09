@@ -125,7 +125,7 @@ Open **http://localhost:3000**, go to the Plate Reader demo, drop in a file from
 
 | Variable | Description |
 |---|---|
-| `PRIVATE_AI_API_KEY` | Key for the private AI provider (private inference, OpenAI-compatible endpoint) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (OpenAI-compatible endpoint) — https://openrouter.ai/keys |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_KEY` | Supabase API key |
 | `MAX_FILE_SIZE_MB` | Max upload size per file (default 10) |

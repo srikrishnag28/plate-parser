@@ -11,9 +11,9 @@ from .sandbox import run_parser_in_sandbox
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-AI_MODEL = "claude-opus-4-8"
-AI_BASE_URL = "https://api.venice.ai/api/v1"
-AI_RETRY_MODEL = "claude-opus-4-8"
+AI_MODEL = "anthropic/claude-opus-4.8"
+AI_BASE_URL = "https://openrouter.ai/api/v1"
+AI_RETRY_MODEL = "anthropic/claude-opus-4.8"
 AI_TIMEOUT = 300.0
 
 SYSTEM_PROMPT = """You are a plate reader data parsing expert. Your ONLY job is to generate a Python parser script for plate reader export files.
@@ -53,9 +53,9 @@ REQUIRED OUTPUT SCHEMA (your parser must produce exactly this structure):
 
 
 def _get_client() -> OpenAI:
-    api_key = os.getenv("PRIVATE_AI_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        raise RuntimeError("PRIVATE_AI_API_KEY not configured")
+        raise RuntimeError("OPENROUTER_API_KEY not configured")
     return OpenAI(api_key=api_key, base_url=AI_BASE_URL, timeout=AI_TIMEOUT)
 
 
@@ -260,13 +260,12 @@ def research_instrument(type_key: str, csv_sample: str, pdf_bytes: bytes | None 
         user_content = prompt
 
     response = client.chat.completions.create(
-        model=AI_MODEL,
+        # OpenRouter enables web search by appending ":online" to the model slug.
+        model=f"{AI_MODEL}:online",
         messages=[
             {"role": "system", "content": research_system},
             {"role": "user",   "content": user_content},  # type: ignore[arg-type]
         ],
-        # Provider-specific request param enabling private-inference web search.
-        extra_body={"venice_parameters": {"enable_web_search": "auto"}},
     )
     result = response.choices[0].message.content or "{}"
     logger.info("Research complete (%d chars)", len(result))

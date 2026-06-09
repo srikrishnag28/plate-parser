@@ -123,15 +123,6 @@ export default function DocsPage() {
           </p>
         </Section>
 
-        <Section id="privacy" icon={ShieldCheck} title="Privacy">
-          <p>
-            Inference runs on a <span className="text-zinc-200">privacy-focused private AI provider</span> — your
-            instrument data is processed with private inference, not handed to a general public model API. The
-            inference layer can be <span className="text-zinc-200">moved into a Trusted Execution Environment (TEE)
-            on demand</span>, so sensitive lab data is processed inside hardware-isolated enclaves when required.
-          </p>
-        </Section>
-
         <Section id="safety" icon={ShieldCheck} title="Safety & correctness">
           <ul className="list-disc pl-5 space-y-1.5 marker:text-zinc-600">
             <li>Generated parsers run in a restricted sandbox — no network, no filesystem, no shell.</li>

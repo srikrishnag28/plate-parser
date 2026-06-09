@@ -49,3 +49,25 @@ async def upload_json(bucket: str, data: dict, filename: str) -> str:
     """Serialize dict to JSON and upload to storage. Returns public URL."""
     content = json.dumps(data, indent=2).encode("utf-8")
     return await upload_file(bucket, content, filename, "application/json")
+
+
+def _list_all_paths(client: Client, bucket: str, prefix: str = "") -> list[str]:
+    """Recursively collect every file path in a bucket (files are nested under uuid folders)."""
+    paths: list[str] = []
+    for item in client.storage.from_(bucket).list(prefix):
+        name = item["name"]
+        full = f"{prefix}/{name}" if prefix else name
+        if item.get("id") is None:  # folder
+            paths.extend(_list_all_paths(client, bucket, full))
+        else:
+            paths.append(full)
+    return paths
+
+
+async def clear_storage(buckets: tuple[str, ...] = ("uploads", "outputs")) -> None:
+    """Remove all objects from the given storage buckets."""
+    client = get_client()
+    for bucket in buckets:
+        paths = _list_all_paths(client, bucket)
+        if paths:
+            client.storage.from_(bucket).remove(paths)

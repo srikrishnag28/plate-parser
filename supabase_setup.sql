@@ -40,6 +40,11 @@ CREATE INDEX IF NOT EXISTS idx_parser_runs_parser_id ON parser_runs(parser_id);
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('uploads', 'uploads', false);
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('outputs', 'outputs', false);
 
+-- Allow the app to delete objects from its buckets (used by the "Clear DB" feature)
+CREATE POLICY "app buckets delete" ON storage.objects
+  FOR DELETE
+  USING (bucket_id = ANY (ARRAY['uploads'::text, 'outputs'::text]));
+
 -- ── Pipeline rearchitecture migration ────────────────────────────────────────
 
 ALTER TABLE parsers
